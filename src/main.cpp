@@ -30,6 +30,8 @@
 #include <QwtPickerDragRectMachine>
 #include <QwtPainter>
 #include <QwtWidgetOverlay>
+#include <QwtPlotSpectrogram>
+#include <QwtRasterData>
 
 #include "QwtRasterImage.h"
 
@@ -72,7 +74,8 @@ namespace
                 QwtLinearColorMap(Qt::blue, Qt::red)
         {
             addColorStop(0.001, Qt::blue);
-            addColorStop(0.5, Qt::green);
+            addColorStop(0.01, Qt::green);
+            addColorStop(0.1, Qt::red);
         }
     };
 
@@ -177,6 +180,28 @@ namespace
             }
         }
     };
+
+    class TestData: public QwtRasterData
+    {
+    public:
+        QwtInterval interval(Qt::Axis axis) const override
+        {
+            qDebug() << value(1.,1.);
+            qDebug() << value(0.,0.);
+            if(axis == Qt::ZAxis){
+                return {value(1.,1.), value(0.,0.)};
+            }
+
+            return {-1,1};
+        }
+
+        double value(double x, double y) const override
+        {
+//            return 1000.*exp(-x*x/0.03)*exp(-y*y/0.001) + 0.1;
+            return log(1000*exp(-x*x/0.03)*exp(-y*y/0.001) + 0.1);
+        }
+    };
+
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -204,15 +229,19 @@ MainWindow::MainWindow(QWidget *parent)
     imageItem1->setAlpha(255);
     imageItem1->attach(plot);
 
-    //plot->axisScaleEngine(QwtPlot::yLeft)->setAttribute(QwtScaleEngine::Inverted);
-
-    auto yAxis = plot->axisWidget(QwtPlot::yLeft);
+    auto gauss = new QwtPlotSpectrogram();
+    gauss->setData(new TestData());
+    gauss->attach(plot);
+    gauss->setZ(3);
+    gauss->setAlpha(125);
+    gauss->setColorMap(new ColorMap());
 
     auto grid = new Grid();
     grid->setZ(12);
     grid->attach(plot);
 
-    const QwtInterval zInterval{0, 255};
+    //auto  zInterval = QwtInterval{0, 255};
+    auto zInterval = gauss->interval(Qt::ZAxis);
     auto scale = QwtLinearScaleEngine().divideScale(zInterval.minValue(), zInterval.maxValue(), 10, 5);
 
     auto rightAxis = plot->axisWidget(QwtPlot::yRight);
@@ -234,12 +263,13 @@ MainWindow::MainWindow(QWidget *parent)
     zScaleWidget->setScaleDiv(scale);
 
     auto zScaleWidgetLog = new QwtScaleWidget(QwtScaleDraw::RightScale, this);
-    zScaleWidgetLog->setTitle("Intensity1");
+    auto zIntervalLog = QwtInterval{exp(gauss->interval(Qt::ZAxis).minValue()), exp(gauss->interval(Qt::ZAxis).maxValue())};
+    zScaleWidgetLog->setTitle("Intensity Log");
     zScaleWidgetLog->setColorBarEnabled(true);
-    zScaleWidgetLog->setColorMap(zInterval, new ColorMapLog());
+    zScaleWidgetLog->setColorMap(zIntervalLog, new ColorMapLog());
     zScaleWidgetLog->setColorBarWidth(15);
 
-    scale = QwtLogScaleEngine().divideScale(1, 1000, 10, 5);
+    scale = QwtLogScaleEngine().divideScale(zIntervalLog.minValue()  , zIntervalLog.maxValue(), 10, 10);
     zScaleWidgetLog->setScaleDiv(scale);
 
     auto *magnifier = new QwtPlotMagnifier(plot->canvas());
