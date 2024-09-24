@@ -14,6 +14,7 @@
 #include <QRect>
 #include <QPainter>
 #include <QPainterPath>
+#include <QCursor>
 
 
 #include <QwtScaleDiv>
@@ -65,6 +66,16 @@ namespace
               addColorStop( 0.5, Qt::green );
         }
     };
+    class ColorMapLog: public QwtLinearColorMap
+    {
+    public:
+        ColorMapLog():
+                QwtLinearColorMap( Qt::blue, Qt::red )
+        {
+            addColorStop( 0.001, Qt::blue );
+            addColorStop(0.5, Qt::green );
+        }
+    };
     class MyZoomer: public QwtPlotZoomer {
     public:
         MyZoomer( QwtPlotCanvas *canvas ):
@@ -91,7 +102,6 @@ namespace
         QRegion rubberBandMask() const override {
             return {QwtPicker::rubberBandMask().boundingRect()};
         };
-
     };
     class MyPicker: public QwtPicker {
     public:
@@ -139,38 +149,47 @@ MainWindow::MainWindow( QWidget* parent)
 
     plot->axisScaleEngine(QwtPlot::yLeft)->setAttribute(QwtScaleEngine::Inverted);
 
+    auto yAxis = plot->axisWidget(QwtPlot::yLeft);
+
     auto grid = new Grid();
     grid->setZ(12);
     grid->attach(plot);
 
     const QwtInterval zInterval {0,255};
-    auto rightAxis = new QwtScaleWidget(QwtScaleDraw::RightScale, this);
-    rightAxis->setTitle( "Intensity" );
-    rightAxis->setColorBarEnabled( true );
-    rightAxis->setColorMap( zInterval, new ColorMap() );
-    rightAxis->setColorBarWidth(30);
-//    auto ticks = new QList<double>();
-//    ticks->push_back( zInterval.minValue());
-//    ticks->push_back((zInterval.minValue()-zInterval.minValue())/2);
-//    ticks->push_back(zInterval.maxValue());
     auto scale = QwtLinearScaleEngine().divideScale(zInterval.minValue(), zInterval.maxValue(), 10, 5);
-    rightAxis->setScaleDiv(scale);
 
-    auto rightAxis1 = new QwtScaleWidget(QwtScaleDraw::RightScale, this);
-    rightAxis1->setTitle( "Intensity1" );
-    rightAxis1->setColorBarEnabled( true );
-    rightAxis1->setColorMap( zInterval, new ColorMap() );
-    rightAxis1->setColorBarWidth(15);
+    auto rightAxis = plot->axisWidget(QwtPlot::yRight);
+    rightAxis->setColorBarEnabled(true );
+    rightAxis->setColorMap(zInterval, new ColorMap() );
+    rightAxis->setColorBarWidth(30);
+
+    plot->setAxisVisible(QwtPlot::yRight);
+    plot->setAxisAutoScale(QwtPlot::yRight, false);
+    plot->setAxisScaleDiv(QwtPlot::yRight, scale);
+    plot->setAxisTitle(QwtPlot::yRight, "z Scale");
+
+
+    auto zScaleWidget = new QwtScaleWidget(QwtScaleDraw::RightScale, this);
+    zScaleWidget->setTitle("Intensity" );
+    zScaleWidget->setColorBarEnabled(true );
+    zScaleWidget->setColorMap(zInterval, new ColorMap() );
+    zScaleWidget->setColorBarWidth(30);
+    zScaleWidget->setScaleDiv(scale);
+
+    auto zScaleWidgetLog = new QwtScaleWidget(QwtScaleDraw::RightScale, this);
+    zScaleWidgetLog->setTitle("Intensity1" );
+    zScaleWidgetLog->setColorBarEnabled(true );
+    zScaleWidgetLog->setColorMap(zInterval, new ColorMapLog() );
+    zScaleWidgetLog->setColorBarWidth(15);
 
     scale = QwtLogScaleEngine().divideScale(1, 1000, 10, 5);
-    rightAxis1->setScaleDiv(scale);
+    zScaleWidgetLog->setScaleDiv(scale);
 
     auto* magnifier = new QwtPlotMagnifier(plot->canvas());
-    magnifier->setMouseButton( Qt::RightButton, Qt::ShiftModifier );
 
     auto* panner = new QwtPlotPanner( plot->canvas());
     panner->setAxisEnabled( QwtPlot::yRight, false );
-    panner->setMouseButton(Qt::MiddleButton);
+    panner->setMouseButton(Qt::LeftButton,Qt::ShiftModifier);
 
     auto canvas = dynamic_cast<QwtPlotCanvas*>(plot->canvas());
     if(canvas) {
@@ -188,8 +207,8 @@ MainWindow::MainWindow( QWidget* parent)
 
     auto gLayout = new QGridLayout();
     gLayout->addWidget(plot,0,0);
-    gLayout->addWidget(rightAxis, 0, 1);
-    gLayout->addWidget(rightAxis1, 0, 2);
+    gLayout->addWidget(zScaleWidget, 0, 1);
+    gLayout->addWidget(zScaleWidgetLog, 0, 2);
 
     QWidget *window = new QWidget();
     window->setLayout(gLayout);
